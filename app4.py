@@ -62,7 +62,7 @@ if page == "Dashboard":
     df[price_col] = (
         df[price_col]
         .astype(str)
-        .str.replace("₹", "")
+        .str.replace("₹", "$")
         .str.replace(",", "")
         .astype(float)
     )
@@ -154,7 +154,7 @@ elif page == "About Us":
     #### 👨‍💻 Developer
     - **Name:** Hussein Sabbagh  
     - **Passion:** Data Science & Machine Learning  
-    - **Tools Used:** Python, Streamlit, Scikit-learn, Pandas, Matplotlib  
+    - **Tools Used:** Python, Streamlit, Scikit-learn, Pandas, Matplotlib , Seaborn , NumPy  
     
     #### 📌 Features
     - Upload your own mobile prices dataset (CSV)
