@@ -7,7 +7,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import r2_score
 import numpy as np
 
 # --- Page Configuration ---
@@ -58,14 +58,16 @@ if page == "Dashboard":
     df.drop(columns=[col for col in drop_cols if col in df.columns],
             inplace=True, errors='ignore')
 
-    # Convert price to numeric
+    # --- Clean and convert price column ---
     df[price_col] = (
         df[price_col]
         .astype(str)
-        .str.replace("₹", "$")
-        .str.replace(",", "")
-        .astype(float)
+        .str.replace("₹", "", regex=False)   # remove currency symbols
+        .str.replace("$", "", regex=False)
+        .str.replace(",", "", regex=False)   # remove commas
     )
+    df[price_col] = pd.to_numeric(df[price_col], errors="coerce")
+    df = df.dropna(subset=[price_col])  # drop rows where price is missing
 
     # --- Features & Target ---
     X = df.drop(price_col, axis=1)
@@ -129,7 +131,6 @@ if page == "Dashboard":
     eval_col, heatmap_col = st.columns(2)
 
     with eval_col:
-
         st.metric("R² Score", f"{r2:.4f}")
 
     with heatmap_col:
