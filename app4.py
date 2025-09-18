@@ -1,85 +1,140 @@
+import streamlit as st
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
+import numpy as np
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-import numpy as np
+from sklearn.metrics import r2_score
 
 # ----------------------------
-# Load Data
+# Page config
 # ----------------------------
-df = pd.read_csv(
-    r"/Users/hussseinsabbagh/Desktop/PROGRAMING/Machine learning/mobile_prices_2023 2.csv"
-)
+st.set_page_config(page_title="Mobile Price Prediction", layout="wide")
 
 # ----------------------------
-# Data Cleaning
+# Sidebar Navigation
 # ----------------------------
-df.drop(columns=['Number of Ratings', 'Date of Scraping'],
-        inplace=True, errors='ignore')
-
-df.drop(columns=['ROM/Storage', 'Front Camera', 'Battery', 'Processor'],
-        inplace=True, errors='ignore')
-
-df['Price in INR'] = df['Price in INR'].str.replace("₹", "").str.replace(",", "").astype(float)
+page = st.sidebar.selectbox("Navigate", ["Prediction", "About Me"])
 
 # ----------------------------
-# Features & Target
+# About Me Page
 # ----------------------------
-X = df.drop("Price in INR", axis=1)
-y = df["Price in INR"]
-
-# Split data
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
-
+if page == "About Me":
+    st.title("👤 About Me")
+    st.write("""
+    Hello! I'm **Hussein Sabbagh**, a Machine Learning enthusiast.
+    
+    This dashboard allows users to:
+    _ This is an website that predict the price of mobile phones.
+    - Upload their own CSV files containing mobile phone features.
+    - Train a Random Forest model to predict mobile prices USD.
+    - Evaluate the model performance with R² score.
+    - See predictions directly on the web without using the terminal.
+    """)
 # ----------------------------
-# Feature Engineering
+# Prediction Page
 # ----------------------------
-categorical_cols = X.select_dtypes(include=["object", "category"]).columns
-numeric_cols = X.select_dtypes(include=["int64", "float64"]).columns
+else:
+    st.title("📱 Mobile Price Prediction Dashboard")
 
-preprocessor = ColumnTransformer(
-    transformers=[
-        ("num", "passthrough", numeric_cols),
-        ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_cols)
-    ]
-)
+    uploaded_file = st.file_uploader("Upload your CSV file", type="csv")
+    if uploaded_file is not None:
+        df = pd.read_csv(uploaded_file)
+        st.subheader("Raw Data")
+        st.dataframe(df.head(10))
 
-# ----------------------------
-# Train Model
-# ----------------------------
-rf_pipeline = Pipeline(steps=[
-    ("preprocessor", preprocessor),
-    ("model", RandomForestRegressor(n_estimators=200, random_state=42))
-])
+        # ----------------------------
+        # Data Cleaning
+        # ----------------------------
+        drop_cols = ['ROM/Storage', 'Front Camera', 'Battery',
+                     'Processor', 'Number of Ratings', 'Date of Scraping']
+        df.drop(columns=[c for c in drop_cols if c in df.columns],
+                inplace=True, errors='ignore')
 
-rf_pipeline.fit(X_train, y_train)
-y_pred = rf_pipeline.predict(X_test)
+        if 'Price in INR' not in df.columns:
+            st.error("❌ The CSV must contain a 'Price in INR' column.")
+        else:
+            df['Price in INR'] = df['Price in INR'].astype(
+                str).str.replace("₹", "").str.replace(",", "").astype(float)
 
-# ----------------------------
-# Evaluation
-# ----------------------------
-r2 = r2_score(y_test, y_pred)
+            # ----------------------------
+            # Detect important columns dynamically
+            # ----------------------------
+            phone_col = [
+                col for col in df.columns if "Phone" in col or "phone" in col][0]
+            rating_col = [
+                col for col in df.columns if "Rating" in col or "rating" in col][0]
+            ram_col = [
+                col for col in df.columns if "RAM" in col or "ram" in col][0]
+            camera_col = [
+                col for col in df.columns if "Camera" in col or "camera" in col][0]
 
-print("📊 Model Evaluation")
+            # Features & Target
+            X = df.drop("Price in INR", axis=1)
+            y = df["Price in INR"]
 
-print(f"R²: {r2:.4f}")
+            # ----------------------------
+            # Train Model on log(price)
+            # ----------------------------
+            y_log = np.log1p(y)  # log(1 + price)
 
-# ----------------------------
-# Prediction Example
-# ----------------------------
-# Example input (replace with actual feature values from your dataset)
-example_input = X.iloc[[0]]  # taking the first row as a test case
+            categorical_cols = X.select_dtypes(
+                include=["object", "category"]).columns
+            numeric_cols = X.select_dtypes(
+                include=["int64", "float64"]).columns
 
-# Convert INR to USD
-EXCHANGE_RATE = 83  # 1 USD ≈ 83 INR
-prediction_inr = rf_pipeline.predict(example_input)[0]
-prediction_usd = prediction_inr / EXCHANGE_RATE
+            preprocessor = ColumnTransformer(
+                transformers=[
+                    ("num", "passthrough", numeric_cols),
+                    ("cat", OneHotEncoder(handle_unknown="ignore"), categorical_cols)
+                ]
+            )
 
-print(f"💰 Predicted Price: ₹{prediction_inr:,.2f}  (≈ ${prediction_usd:,.2f})")
+            rf_pipeline = Pipeline(steps=[
+                ("preprocessor", preprocessor),
+                ("model", RandomForestRegressor(n_estimators=200, random_state=42))
+            ])
+            rf_pipeline.fit(X, y_log)
+
+            # ----------------------------
+            # Model Evaluation
+            # ----------------------------
+            y_pred_log = rf_pipeline.predict(X)
+            y_pred = np.expm1(y_pred_log)
+            r2 = r2_score(y, y_pred)
+            st.subheader("📊 Model Evaluation")
+            st.metric("R² Score", f"{r2:.4f}")
+
+            # ----------------------------
+            # User Inputs
+            # ----------------------------
+            st.subheader("💡 Enter Phone Features for Prediction")
+
+            selected_phone = st.selectbox(
+                "Select Phone", df[phone_col].unique())
+            rating = st.slider(
+                f"Rate this phone ({rating_col})", min_value=0.0, max_value=5.0, value=4.0, step=0.1)
+            ram = st.selectbox("Select RAM", df[ram_col].unique())
+            camera = st.selectbox(
+                "Select Back & Rear Camera", df[camera_col].unique())
+
+            # Build input dataframe
+            input_data = pd.DataFrame({
+                phone_col: [selected_phone],
+                rating_col: [rating],
+                ram_col: [ram],
+                camera_col: [camera]
+            })
+
+            # ----------------------------
+            # Make Prediction
+            # ----------------------------
+            predicted_log_price = rf_pipeline.predict(input_data)[0]
+            predicted_price_inr = np.expm1(predicted_log_price)
+            EXCHANGE_RATE = 83  # 1 USD ≈ 83 INR
+            predicted_price_usd = predicted_price_inr / EXCHANGE_RATE
+
+            st.success(f"💰 Predicted Price: ${predicted_price_usd:,.2f}")
+    else:
+        st.info("📂 Upload a CSV file to get started.")
