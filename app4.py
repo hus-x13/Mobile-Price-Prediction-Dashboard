@@ -7,18 +7,12 @@ from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score
 
-# ----------------------------
-# Page config
-# ----------------------------
+
 st.set_page_config(page_title="Mobile Price Prediction", layout="wide")
 
-# ----------------------------
-# Sidebar Navigation
-# ----------------------------
+
 page = st.sidebar.selectbox("Navigate", ["Prediction", "About Me"])
 
-# ----------------------------
-# About Me Page
 # ----------------------------
 if page == "About Me":
     st.title("👤 About Me")
@@ -32,9 +26,7 @@ if page == "About Me":
     - Evaluate the model performance with R² score.
     - See predictions directly on the web without using the terminal.
     """)
-# ----------------------------
-# Prediction Page
-# ----------------------------
+
 else:
     st.title("📱 Mobile Price Prediction Dashboard")
 
@@ -44,9 +36,7 @@ else:
         st.subheader("Raw Data")
         st.dataframe(df.head(10))
 
-        # ----------------------------
-        # Data Cleaning
-        # ----------------------------
+
         drop_cols = ['ROM/Storage', 'Front Camera', 'Battery',
                      'Processor', 'Number of Ratings', 'Date of Scraping']
         df.drop(columns=[c for c in drop_cols if c in df.columns],
@@ -58,9 +48,7 @@ else:
             df['Price in INR'] = df['Price in INR'].astype(
                 str).str.replace("₹", "").str.replace(",", "").astype(float)
 
-            # ----------------------------
-            # Detect important columns dynamically
-            # ----------------------------
+           
             phone_col = [
                 col for col in df.columns if "Phone" in col or "phone" in col][0]
             rating_col = [
@@ -74,9 +62,7 @@ else:
             X = df.drop("Price in INR", axis=1)
             y = df["Price in INR"]
 
-            # ----------------------------
-            # Train Model on log(price)
-            # ----------------------------
+  
             y_log = np.log1p(y)  # log(1 + price)
 
             categorical_cols = X.select_dtypes(
@@ -97,18 +83,14 @@ else:
             ])
             rf_pipeline.fit(X, y_log)
 
-            # ----------------------------
-            # Model Evaluation
-            # ----------------------------
+           
             y_pred_log = rf_pipeline.predict(X)
             y_pred = np.expm1(y_pred_log)
             r2 = r2_score(y, y_pred)
             st.subheader("📊 Model Evaluation")
             st.metric("R² Score", f"{r2:.4f}")
 
-            # ----------------------------
-            # User Inputs
-            # ----------------------------
+       
             st.subheader("💡 Enter Phone Features for Prediction")
 
             selected_phone = st.selectbox(
@@ -119,7 +101,6 @@ else:
             camera = st.selectbox(
                 "Select Back & Rear Camera", df[camera_col].unique())
 
-            # Build input dataframe
             input_data = pd.DataFrame({
                 phone_col: [selected_phone],
                 rating_col: [rating],
@@ -127,9 +108,6 @@ else:
                 camera_col: [camera]
             })
 
-            # ----------------------------
-            # Make Prediction
-            # ----------------------------
             predicted_log_price = rf_pipeline.predict(input_data)[0]
             predicted_price_inr = np.expm1(predicted_log_price)
             EXCHANGE_RATE = 83  # 1 USD ≈ 83 INR
